@@ -1,23 +1,17 @@
-FROM python:3.9-slim
-
-# 安裝系統依賴 (Pygame 執行所需)
-# 修正：將 libgl1-mesa-glx 替換為 libgl1
-RUN apt-get update && apt-get install -y \
-    libsdl2-dev \
-    libsdl2-image-dev \
-    libsdl2-mixer-dev \
-    libsdl2-ttf-dev \
-    libgl1 \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.12-slim
 
 WORKDIR /app
 
-# 1. 複製依賴檔案並安裝
+# 即時輸出 log (不緩衝)，並隱藏 pygame 的歡迎訊息
+ENV PYTHONUNBUFFERED=1 PYGAME_HIDE_SUPPORT_PROMPT=1
+
+# 先裝 CPU 版 torch，避免下載數 GB 的 CUDA 版本
+# pygame 的 wheel 已內含 SDL，且容器內以 --no-render 執行，不需要額外的系統套件
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir torch==2.9.1 --index-url https://download.pytorch.org/whl/cpu \
+    && pip install --no-cache-dir -r requirements.txt
 
-# 2. 複製 App 資料夾內所有內容到容器的 /app
-COPY App/ . 
+COPY App/ .
 
-# 執行程式
-CMD ["python", "app.py"]
+# 容器內沒有顯示器：不開視窗、全速訓練，結束後把權重存回 /app
+CMD ["python", "app.py", "--no-render"]
